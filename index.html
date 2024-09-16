@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FPV Simulation with Virtual Joystick</title>
+    <style>
+        body { margin: 0; overflow: hidden; touch-action: none; }
+        canvas { display: block; }
+
+        /* Container for the Left joystick */
+        #joystick-container-left {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            width: 150px;
+            height: 150px;
+        }
+
+        /* Right joystick container */
+        #joystick-container-right {
+            position: absolute;
+            bottom: 50px;
+            right: 50px;
+            width: 150px;
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Container for the Left virtual joystick -->
+    <div id="joystick-container-left"></div>
+
+    <!-- Right joystick container -->
+    <div id="joystick-container-right"></div>
+
+    <!-- Include Three.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+    <!-- Include GLTFLoader -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <!-- Include nippleJS library -->
+    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+
+
+
+    <script>
+        // Basic Three.js setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x202020); // Dark gray background
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+ // Declare the drone model variable
+let droneModel;
+
+// Check if GLTFLoader is recognized
+console.log(THREE.GLTFLoader); // Should not be undefined
+
+// Create a loader for your model format (e.g., GLTFLoader)
+const loader = new THREE.GLTFLoader();
+
+
+
+// Load the drone model
+loader.load(
+    'game-drone.gltf',
+    function (gltf) {
+        console.log('Model loaded:', gltf);
+        droneModel = gltf.scene;
+        droneModel.position.set(0, 0, 0); // Center the model
+        droneModel.scale.set(30, 30, 30); // Adjust as needed
+        droneModel.rotation.y = Math.PI; // Adjust if necessary
+        scene.add(droneModel);
+
+        // Apply a basic material to ensure visibility
+        droneModel.traverse(function (child) {
+            if (child.isMesh) {
+                child.material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            }
+        });
+
+    },
+    function (xhr) {
+        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+    },
+    function (error) {
+        console.error('An error happened during model loading:', error);
+    }
+);
+
+        // Add a ground plane
+        const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
+        const planeMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = - Math.PI / 2; //Rotate to make it horizontal
+        plane.position.y = 0; // Position it at ground level
+        scene.add(plane);
+
+        // Add a grid helper
+        const gridSize = 1000;
+        const gridDivisions = 150;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xffffff, 0xffffff); 
+        gridHelper.position.y = 0.01; // Slightly above the plane to prevent z-fighting
+        scene.add(gridHelper);
+
+        // Create a torus geometry (hoop)
+        const hoopGeometry = new THREE.TorusGeometry(
+            10,      // Radius of the torus (overall size)
+            .3,    // Tube radius (thickness of the ring)
+            16,     // Radial segments
+            100     // Tubular segments
+        );
+
+        // Create a material for the hoop
+        const hoopMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffd700
+        });
+
+        // Create the mesh
+        const hoop = new THREE.Mesh(hoopGeometry, hoopMaterial);
+
+
+        // Function to clone and position hoops
+        function addHoop(x, y, z) {
+            const newHoop = hoop.clone(); // Clone the original hoop
+            newHoop.position.set(x, y, z); // Set position for the cloned hoop
+            scene.add(newHoop); // Add the cloned hoop to the scene
+        }
+
+        // Position the hoop
+        hoop.position.set(10, 20, -40);  // Adjust these values as needed
+
+        // Add the hoop to the scene
+        scene.add(hoop);
+
+        // Add extra hoops by cloning the original one
+        addHoop(20, 20, -80);  // Add a second hoop
+        addHoop(-10, 15, -120); // Add a third hoop
+        addHoop(5, 10, -160);  // Add a fourth hoop
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Add directional light
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // Position the camera
+        camera.position.set(0,5,10);
+        
+        // Make the camera look at the center of the scene
+        camera.lookAt(0,0,0);
+
+        // Variables for movement
+        let moveX = 0;
+        let moveY = 0;
+        let moveForward = 0;
+        let rotateY = 0; 
+
+
+        // Initialize nippleJS joystick
+        const joystickLeft = nipplejs.create({
+            zone: document.getElementById('joystick-container-left'),
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'white',
+            size: 100,
+        });
+
+        joystickLeft.on('move', function (evt, data) {
+            const maxSpeed = 0.3; // Adjust the maximum speed
+            if (data.direction) {
+                // Calculate movement based on angle and distance
+                const angle = data.angle.radian; // In radians
+                const force = data.force; // From 0 to 1
+                moveY = Math.sin(angle) * force * maxSpeed * 1;
+                moveX = Math.cos(angle) * force * maxSpeed * -1; 
+            }
+        });
+
+        joystickLeft.on('end', function () {
+            moveX = 0;
+            moveY = 0;
+        });
+
+        // Initialize nippleJS joystick for the right side
+        const joystickRight = nipplejs.create({
+            zone: document.getElementById('joystick-container-right'),
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'white',
+            size: 100,
+        });
+
+        joystickRight.on('move', function (evt, data) {
+            const maxSpeed = .4; // Adjust the maximum speed
+            const maxRotation = .04; // Adjust the maximum rotation speed
+
+            if (data.direction) {
+                const angle = data.angle.radian;
+                const force = data.force;
+
+            // Left/Right controls moveForward (forward/backward movement)
+            moveForward = Math.sin(angle) * force * maxSpeed * -1;
+
+            // Up/Down controls rotateY (yaw rotation)
+            rotateY = Math.cos(angle) * force * maxRotation * 1;
+            }
+        });
+
+        joystickRight.on('end', function () {
+            moveForward = 0;
+            rotateY = 0;
+        });
+
+        // Update your animate function for drone
+        function animate() {
+            requestAnimationFrame(animate);
+
+    if (droneModel) {
+        // Calculate the drone's forward direction based only on its yaw rotation
+        const forwardVector = new THREE.Vector3(0, 0, -1);
+        const yawQuaternion = new THREE.Quaternion();
+       
+        yawQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), droneModel.rotation.y);
+        forwardVector.applyQuaternion(yawQuaternion); // Apply yaw rotation
+        forwardVector.normalize(); // Ensure it's a unit vector
+
+        // Calculate the camera's right vector (used for lateral movement)
+        const rightVector = new THREE.Vector3();
+        rightVector.crossVectors(forwardVector, new THREE.Vector3(0, 1, 0)).normalize();
+        camera.getWorldDirection(rightVector);
+        rightVector.cross(camera.up); // Get the camera's right vector
+        rightVector.y = 0; // Ensure no vertical component for horizontal movement
+        rightVector.normalize(); // Ensure it's a unit vector
+
+        // Yaw (rotation around Y-axis) should be independent of the tilt
+        droneModel.rotation.y -= rotateY; // This only affects the Y-axis (yaw)
+
+
+        // Lateral movement (left/right) based on the yaw and right vector
+       
+        rightVector.crossVectors(forwardVector, new THREE.Vector3(0, 1, 0)).normalize();
+
+        // Apply lateral movement along the right vector (left/right movement)
+        droneModel.position.addScaledVector(rightVector, moveX);
+
+        const upVector = new THREE.Vector3(0, 1, 0); // World up vector
+
+        // Calculate movement in the right and up directions left joystick
+        const movement = new THREE.Vector3();
+        movement.addScaledVector(rightVector, moveX);
+        movement.addScaledVector(upVector, moveY);
+
+        // Update the drone's position
+        droneModel.position.add(movement);
+
+        // Variables for storing the drone's rotation and tilt
+        //let yaw = 180;      // Rotation around Y-axis (left/right turning)
+       // let pitch = 0;    // Rotation around X-axis (forward/backward tilt)
+      //  let roll = 10;     // Rotation around Z-axis (left/right tilt)
+
+        // 7. Apply the rotations to the drone
+        //droneModel.rotation.set(pitch, yaw, roll); // Apply pitch (X), yaw (Y), and roll (Z)
+
+        // Tilt the drone based on movement
+        //const maxTiltAngle = THREE.MathUtils.degToRad(20); // 20 degrees in radians
+
+        // Tilt forward/backward (X-axis) based on forward/backward movement
+        //const tiltForward = -moveForward * maxTiltAngle; // Negative for forward tilt
+        //droneModel.rotation.x = THREE.MathUtils.clamp(droneModel.rotation.x, tiltForward, -maxTiltAngle, maxTiltAngle);
+
+        // Tilt left/right (Z-axis) based on lateral movement
+        //const tiltSideways = -moveX * maxTiltAngle; // Positive for right tilt
+        //droneModel.rotation.z = THREE.MathUtils.clamp(tiltSideways, -maxTiltAngle, maxTiltAngle);
+
+// Set the maximum ROLL ANGLE in radians (e.g., 15 degrees)
+const maxRollAngle = THREE.MathUtils.degToRad(70); // 15 degrees converted to radians
+
+// Calculate the roll (Z-axis tilt) based on joystick input
+const roll = -moveX * maxRollAngle; // MoveX determines the amount of roll
+
+// Clamp the roll to ensure it doesn't exceed the maximum roll angle
+droneModel.rotation.z = THREE.MathUtils.clamp(roll, -maxRollAngle, maxRollAngle);
+
+// Set the maximum PITCH ANGLE in radians (e.g., 10 degrees)
+const maxPitchAngle = THREE.MathUtils.degToRad(10); // 20 degrees converted to radians
+
+// Calculate the pitch (X-axis tilt) based on joystick input (forward/backward movement)
+const pitch = -moveForward * maxPitchAngle; // Negative for forward tilt
+
+// Clamp the pitch to ensure it doesn't exceed the maximum pitch angle
+droneModel.rotation.x = THREE.MathUtils.clamp(pitch, -maxPitchAngle, maxPitchAngle);
+
+        // Apply forward/backward movement along the forward vector
+        droneModel.position.addScaledVector(forwardVector, moveForward);   
+
+        // Rotate the drone around the Y-axis (yaw)
+        droneModel.rotation.y -= rotateY;
+
+// Define the maximum YAW ROTATION angle in radians 
+//const maxYawAngle = THREE.MathUtils.degToRad(100);
+
+// Apply yaw rotation and clamp it within the maxYawAngle range
+//const clampedYaw = THREE.MathUtils.clamp(rotateY, -maxYawAngle, maxYawAngle);
+
+// Apply the clamped yaw rotation to the drone model
+//droneModel.rotation.y = -clampedYaw;
+
+        // Update the camera to follow the drone
+        camera.position.x = droneModel.position.x - 10 * Math.sin(droneModel.rotation.y);
+        camera.position.y = droneModel.position.y + 5;
+        camera.position.z = droneModel.position.z - 10 * Math.cos(droneModel.rotation.y);
+        camera.lookAt(droneModel.position);
+    }
+
+    renderer.render(scene, camera);
+}
+animate();
+
+        // Handle window resize
+        window.addEventListener('resize', function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+    </script>
+</body>
+</html>
