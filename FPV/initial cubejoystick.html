@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FPV Simulation with Virtual Joystick</title>
+    <style>
+        body { margin: 0; overflow: hidden; touch-action: none; }
+        canvas { display: block; }
+
+        /* Container for the Left joystick */
+        #joystick-container-left {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            width: 150px;
+            height: 150px;
+        }
+
+        /* Right joystick container */
+        #joystick-container-right {
+            position: absolute;
+            bottom: 50px;
+            right: 50px;
+            width: 150px;
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Container for the Left virtual joystick -->
+    <div id="joystick-container-left"></div>
+
+    <!-- Right joystick container -->
+    <div id="joystick-container-right"></div>
+
+    <!-- Include Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Include nippleJS library -->
+    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+    <script>
+        // Basic Three.js setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x202020); // Dark gray background
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+ 
+
+
+        // Add a ground plane
+        const planeGeometry = new THREE.PlaneGeometry(100, 100);
+        const planeMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = - Math.PI / 2; //Rotate to make it horizontal
+        plane.position.y = 0; // Position it at ground level
+        scene.add(plane);
+
+        // Add a grid helper
+        const gridSize = 100;
+        const gridDivisions = 50;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xffffff, 0xffffff); 
+        gridHelper.position.y = 0.01; // Slightly above the plane to prevent z-fighting
+        scene.add(gridHelper);
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Add directional light
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // Create a cube
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const drone = new THREE.Mesh(geometry, material);
+        scene.add(drone);
+
+        // Position the camera
+        camera.position.set(0,5,10);
+        
+        //Make the camera look at the center of the scene
+        camera.lookAt(0,0,0);
+
+        // Variables for movement
+        let moveX = 0;
+        let moveY = 0;
+        let moveForward = 0;
+        let rotateY = 0; 
+
+
+        // Initialize nippleJS joystick
+        const joystickLeft = nipplejs.create({
+            zone: document.getElementById('joystick-container-left'),
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'white',
+            size: 100,
+        });
+
+        joystickLeft.on('move', function (evt, data) {
+            const maxSpeed = 0.2; // Adjust the maximum speed
+            if (data.direction) {
+                // Calculate movement based on angle and distance
+                const angle = data.angle.radian; // In radians
+                const force = data.force; // From 0 to 1
+                moveX = Math.sin(angle) * force * maxSpeed;
+                moveY = Math.cos(angle) * force * maxSpeed * -1; // Negative to match Three.js coordinate system
+            }
+        });
+
+        joystickLeft.on('end', function () {
+            moveX = 0;
+            moveY = 0;
+        });
+
+        // Initialize nippleJS joystick for the right side
+        const joystickRight = nipplejs.create({
+            zone: document.getElementById('joystick-container-right'),
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'red',
+            size: 100,
+        });
+
+        joystickRight.on('move', function (evt, data) {
+            const maxSpeed = 0.2; // Adjust the maximum speed
+            const maxRotation = 0.05; // Adjust the maximum rotation speed
+
+            if (data.direction) {
+                const angle = data.angle.radian;
+                const force = data.force;
+
+                // Up/Down controls moveForward (Z-axis movement)
+                moveForward = Math.cos(angle) * force * maxSpeed * -1;
+
+                // Left/Right controls rotateY (Y-axis rotation)
+                rotateY = Math.sin(angle) * force * maxRotation;
+            }
+        });
+
+        joystickRight.on('end', function () {
+            moveForward = 0;
+            rotateY = 0;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update the drone's position based on left joystick input
+            drone.position.x -= moveY;
+            drone.position.y += moveX;
+
+            // Move forward and backward along the drone's local Z-axis
+            const forwardVector = new THREE.Vector3(0, 0, -1);
+            forwardVector.applyQuaternion(drone.quaternion);
+            drone.position.add(forwardVector.multiplyScalar(moveForward));
+
+            // Rotate the drone around the Y-axis (yaw)
+            drone.rotation.y -= rotateY;
+
+            // Optionally, make the camera follow the drone
+            camera.position.x = drone.position.x;
+            camera.position.y = drone.position.y + 5; // Adjust vertical offset
+            camera.position.z = drone.position.z + 5; // Adjust depth offset
+            camera.lookAt(drone.position);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+    </script>
+</body>
+</html>

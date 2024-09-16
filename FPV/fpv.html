@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Simulation</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+  
+
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Basic Three.js setup for FPV
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);  // Set the background color to sky blue
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add a light source so we can see objects in the scene
+        const light = new THREE.DirectionalLight(0xffffff, 1);  // White light
+        light.position.set(5, 5, 5).normalize();  // Position the light above and to the side
+        scene.add(light);
+
+        // Create a cube to act as your drone
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const drone = new THREE.Mesh(geometry, material);
+        scene.add(drone);
+
+        // Set initial camera and cube positions
+        camera.position.z = 5;  // Camera starts at z=5
+        drone.position.z = 0;   // Cube starts at z=0
+
+        // Animation loop to move the cube
+        function animate()  {
+            requestAnimationFrame(animate);  // Keeps the animation going
+
+            // Move the cube forward (in the negative z direction)
+            drone.position.z -= 0.05;  // Change z value to make the cube move forward
+
+            // Update the camera to follow the cube (optional for FPV effect)
+            camera.position.z = drone.position.z + 5;
+
+            renderer.render(scene, camera);  // Render the scene
+        }
+
+        animate();  // Start the animation
+
+    
+
+
+</body>
+</html>

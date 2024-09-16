@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV Simulation</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Basic Three.js setup for FPV
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create a cube to act as your drone
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const drone = new THREE.Mesh(geometry, material);
+        scene.add(drone);
+
+        camera.position.z = 5;
+
+// Variables for movement
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+
+   // Event listeners for key presses
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+                moveForward = true;
+            }
+            if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+        moveBackward = true;
+           }
+           if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+        moveLeft = true;
+           }
+           if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+        moveRight = true;
+           }
+});
+
+
+        document.addEventListener('keyup', (event) => {
+            if (event.code === 'ArrowUp' || event.code === 'KeyW') {
+                moveForward = false;
+            }
+           if (event.code === 'ArrowDown' || event.code === 'KeyS') {
+        moveBackward = false;
+           }
+           if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+        moveLeft = false;
+           }
+           if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+        moveRight = false;
+          }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+    // Move the drone forward when key is pressed
+            if (moveForward) {
+                drone.position.z -= 0.1; // Adjust the speed by changing the value
+            }
+           if (moveBackward) {
+        drone.position.z += 0.1;
+           }
+           if (moveLeft) {
+        drone.position.x -= 0.1;
+           }
+           if (moveRight) {
+        drone.position.x += 0.1;
+           }
+            renderer.render(scene, camera);
+        }
+        animate();
+
+    </script>
+</body>
+</html>
