@@ -27,6 +27,10 @@
     </style>
 </head>
 <body>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
     <!-- Container for the Left virtual joystick -->
     <div id="joystick-container-left"></div>
 
@@ -81,7 +85,7 @@ loader.load(
         droneModel.position.set(0, 0, 0); // Center the model
         droneModel.scale.set(30, 30, 30); // Adjust as needed
         droneModel.rotation.y = Math.PI; // Adjust if necessary
-        scene.add(droneModel);
+        scene.add(gltf.scene);
 
         // Apply a basic material to ensure visibility
         droneModel.traverse(function (child) {
